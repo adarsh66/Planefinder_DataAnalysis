@@ -7,6 +7,7 @@
 library(dplyr)
 library(ggplot2)
 library(lubridate)
+library(waffle)
 
 theme_stripped <- theme(panel.background = element_blank(),
                         panel.grid = element_blank())
@@ -187,3 +188,20 @@ delayfilename <- "plots/delaysByAirline_UK.pdf"
 ggsave(delayfilename, plot = delaysByAirlinePlot )
 ###############################################################################
 
+###############################################################################
+#Showing the waffle chart for the top 8 airports in the UK. 70 was found to 
+#be the threshold for top 8 (manually found this out).
+airportMinThreshold <- 70
+qualifiedAirports <- delayInfo %>% 
+  group_by(AirportName) %>% 
+  summarise(total.count=n()) %>% 
+  filter(total.count >airportMinThreshold)
+
+#rprepares the vector required for the waffle chart
+parts <- as.vector(t(qualifiedAirports$total.count))
+names(parts) <- as.vector(t(qualifiedAirports$AirportName))
+
+#dividing by 50 to scale it up. this function doesnt handle scale too well
+airportTakeOffWaffle <- waffle(parts/50, rows=3)
+filename <- "plots/airportTakeOffWaffleChart.pdf"
+ggsave(filename, plot = airportTakeOffWaffle )
