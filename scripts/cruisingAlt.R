@@ -40,6 +40,13 @@ cruisingAlt <- flightsUK %>%
   mutate(maxAlt = max(Altitude.x)) %>%
   filter(Altitude.x == maxAlt)
 
+## Min 10 flights per aircraft to be considered here.
+aircraftTypeThreshold <- 100
+typeQualified <- cruisingAlt %>% 
+  group_by(Type) %>% 
+  summarise(total.count=n()) %>% 
+  filter(total.count >aircraftTypeThreshold)
+
 #############################################################################
 ## Histogram of the cruising altitudes 
 hist(cruisingAlt$Altitude.x, breaks=1000)
@@ -49,17 +56,22 @@ hist(cruisingAlt$Altitude.x, breaks=1000)
 
 #############################################################################
 ## cruising Altitude by type of flight . 
-cruisingAltPlt <- ggplot(cruisingAlt, aes(x=Type, y=maxAlt)) +  geom_boxplot()
+cruisingAltQualified <- cruisingAlt %>%
+  filter(Type %in% typeQualified$Type)
+
+cruisingAltPlt <- ggplot(cruisingAltQualified, aes(x=reorder(Type, -maxAlt, median, order = TRUE), y=maxAlt)) +  geom_boxplot()
 cruisingAltPlt <- cruisingAltPlt + theme(text = element_text(size=10),
                   axis.text.x = element_text(angle=90, vjust=1))
 print(cruisingAltPlt)
 filename <- "plots/cruisingAltByType_UK.pdf"
 ggsave(filename, plot = cruisingAltPlt )
 
-
 ##############################################################################
 ## cruising Altitude by start of journey
-cruisingAltPlt <- ggplot(cruisingAlt, aes(x=origin, y=maxAlt)) +  geom_boxplot()
+cruisingAltQualified <- cruisingAlt %>%
+  filter(Type %in% typeQualified$Type)
+
+cruisingAltPlt <- ggplot(cruisingAltQualified, aes(x=reorder(origin, -maxAlt, median, order = TRUE), y=maxAlt)) +  geom_boxplot()
 cruisingAltPlt <- cruisingAltPlt + theme(text = element_text(size=10),
                                          axis.text.x = element_text(angle=90, vjust=1))
 print(cruisingAltPlt)
