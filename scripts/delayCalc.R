@@ -1,5 +1,5 @@
 ################################################################################
-## Measuring delays in flights
+## Measuring takeoff and delays in flights take off from each airport
 ## Adarsh Janakiraman (Jan 2016)
 ################################################################################
 
@@ -63,17 +63,21 @@ takeOff %>%
 delayInfo <- takeOff %>% 
       filter(Altitude.x >0) %>% 
       filter(ntime==min(ntime)) %>% 
-      select(ntime, Altitude.x, time, Country, City, AirportName, Type, AirlineName, AirlineCountry)
+      select(ntime, Altitude.x, time, Country.x, City.x, AirportName.x, Type, AirlineName, AirlineCountry)
 
-hist(delayInfo$ntime, breaks=50)
+hist(delayInfo$ntime/60, breaks=50, col = "red", xlab = "Delay time (minutes)", main = "")
+
+plotdelayhist <- ggplot(delayInfo, aes(x=ntime/60))   + geom_histogram(bins = 30, fill="red", colour="black")  + scale_x_continuous("Delay time (mins)", breaks=c(10,20,30,40,50)) 
+delayfilename <- "plots/delayHist.png"
+ggsave(delayfilename, plot = plotdelayhist )
 
 #Binning the time of the day by hour to calc avg delay time for ever hour
 delayInfo$timebin <- cut.POSIXt(delayInfo$time,"hour")
 
 #Time of day vs. take off time
-ggplot(delayInfo, aes(x=time, y=ntime)) +
-  geom_point() + 
-  geom_smooth(method="lm")
+delayScatter <- ggplot(delayInfo, aes(x=time, y=ntime/60)) +  geom_point(colour="red") +  geom_smooth(method="loess") + ylab("Delay time (mins)") + xlab("Time of day") 
+delayfilename <- "plots/delayScatterPlot.png"
+ggsave(delayfilename, plot = delayScatter )
 
 ##############################################################################
 ## Plot time of day vs delay by Airport
@@ -118,14 +122,15 @@ delayInfoRestricted <- delayInfo %>%
     filter(AirportName %in% qualifiedAirports$AirportName)
 
 #Take off time (delay) vs. Airport name
-delaysByAirportPlot <- ggplot(delayInfoRestricted, aes(x= reorder(AirportName, -ntime, median, order=TRUE) , y=ntime)) +
-        geom_violin() + stat_summary(fun.y="median", geom="point")
+delaysByAirportPlot <- ggplot(delayInfoRestricted, aes(x= reorder(AirportName, ntime, median, order=TRUE) , y=ntime/60)) +  geom_violin(fill="grey80") + stat_summary(fun.y = "median", geom="point", colour="red")
 delaysByAirportPlot <- delaysByAirportPlot + 
                         theme(text = element_text(size=10),
                         axis.text.x = element_text(angle=90, vjust=1))
+delaysByAirportPlot <- delaysByAirportPlot + scale_y_continuous(name="Delay time (mins)", breaks=c(10,20,30,40,50)) + scale_x_discrete(name="")
+delaysByAirportPlot <- delaysByAirportPlot + coord_flip()
 #Save the plot to file
 print(delaysByAirportPlot)
-delayfilename <- "plots/delaysByAirport_UK.pdf"
+delayfilename <- "plots/delaysByAirport_UK.png"
 ggsave(delayfilename, plot = delaysByAirportPlot )
 
 ###############################################################################
@@ -178,30 +183,60 @@ delayInfoRestricted <- delayInfo %>%
   filter(AirlineName %in% qualifiedTypes$AirlineName)
 
 #Take off time (delay) vs. Airport name
-delaysByAirlinePlot <- ggplot(delayInfoRestricted, aes(x=reorder(AirlineName, -ntime, median, order=TRUE), y=ntime)) +
-  geom_violin() + stat_summary(fun.y="median", geom="point")
+delaysByAirlinePlot <- ggplot(delayInfoRestricted, aes(x=reorder(AirlineName, ntime, median, order=TRUE), y=ntime/60)) +
+  geom_violin(fill="grey80") + stat_summary(fun.y="median", geom="point", colour="red")
 delaysByAirlinePlot <- delaysByAirlinePlot + theme(text = element_text(size=10),
                         axis.text.x = element_text(angle=90, vjust=1))
+delaysByAirlinePlot <- delaysByAirlinePlot + scale_y_continuous(name="Delay time (mins)", breaks=c(10,20,30,40,50)) + scale_x_discrete(name="")
+delaysByAirlinePlot <- delaysByAirlinePlot + coord_flip()
 print(delaysByAirlinePlot)
 #Save the plot to file
-delayfilename <- "plots/delaysByAirline_UK.pdf"
+delayfilename <- "plots/delaysByAirline_UK.png"
 ggsave(delayfilename, plot = delaysByAirlinePlot )
 ###############################################################################
 
 ###############################################################################
 #Showing the waffle chart for the top 8 airports in the UK. 70 was found to 
 #be the threshold for top 8 (manually found this out).
-airportMinThreshold <- 70
+airportMinThreshold <- 50
 qualifiedAirports <- delayInfo %>% 
-  group_by(AirportName) %>% 
+  group_by(AirportName.x) %>% 
   summarise(total.count=n()) %>% 
   filter(total.count >airportMinThreshold)
 
 #rprepares the vector required for the waffle chart
 parts <- as.vector(t(qualifiedAirports$total.count))
 names(parts) <- as.vector(t(qualifiedAirports$AirportName))
-
+parts <- sort(parts, decreasing = TRUE)
 #dividing by 50 to scale it up. this function doesnt handle scale too well
 airportTakeOffWaffle <- waffle(parts/50, rows=3)
-filename <- "plots/airportTakeOffWaffleChart.pdf"
+print(airportTakeOffWaffle)
+filename <- "plots/airportTakeOffWaffleChart.png"
 ggsave(filename, plot = airportTakeOffWaffle )
+
+###############################################################################
+## Scatter plot of number flights vs Avg delay time per airport
+
+#Min number of flights on the day to qualify for the plot
+airportMinThreshold <- 10
+qualifiedAirports <- delayInfo %>% 
+  group_by(AirportName) %>% 
+  summarise(total.count=n()) %>% 
+  filter(total.count >airportMinThreshold)
+
+delayInfoRestricted <- delayInfo %>%
+  filter(AirportName %in% qualifiedAirports$AirportName)
+
+delayInfoRestricted <- delayInfoRestricted  %>% 
+          group_by(AirportName) %>% 
+          summarise(numflights=n(), avgntime=mean(ntime)) 
+
+delayByAirportScatter <- ggplot(delayInfoRestricted, aes(x=numflights, y=avgntime/60)) +
+  geom_point(colour="red", size=5) +
+  geom_smooth(method="lm") + 
+  xlab("Number of flights (Log scale)") + ylab("Avg delay time (mins)") +
+  scale_x_continuous(trans = "log") + 
+  geom_text(aes(label=AirportName), nudge_x = -0.25, nudge_y = 0.5)
+print(delayByAirportScatter)
+filename <- "plots/delayByAirportScatter.png"
+ggsave(filename, plot = delayByAirportScatter )
